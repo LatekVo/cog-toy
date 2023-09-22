@@ -1,0 +1,40 @@
+#cog-field {
+    height: 100vh;
+    width: 100vw;
+}
+.cog {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    background-color: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    aspect-ratio: 1 / 1;
+}
+.spoke {
+    position: absolute;
+    background-color: black;
+    width: 30px;
+    height: 25px;
+    border-radius: 4px;
+    transform: translateY(-20px);
+}
+#ui-field {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 60vh;
+    left: 50vw;
+    transform: translate(-50%, -50%);
+    padding: 8px;
+    background-color: rgba(1, 1, 1, 0.2);
+    border-radius: 8px;
+}
+.settings-button {
+    margin: 8px;
+    padding: 4px;
+    border-radius: 8px;
+}
