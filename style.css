@@ -19,6 +19,7 @@
     height: 25px;
     border-radius: 4px;
     transform: translateY(-20px);
+    transition: rotate ease 50ms; /* SUPER IMPORTANT CHANGE ALONG WITH THE JS VARIABLE frameLength */
 }
 #ui-field {
     display: flex;
