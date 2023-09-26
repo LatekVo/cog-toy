@@ -1,3 +1,5 @@
+console.log('Script start');
+
 let cogField = document.getElementById('cog-field');
 
 let rootRotationSpeedDeg = 72; // deg, 5s/rot
@@ -29,7 +31,7 @@ class Cog {
     updateRotation(parentRotation) {
         this.currentRotation = parentRotation * this.parentRotationRatio;
         this.childrenList.forEach((child) => {
-            child.updateRotation(this.currentRotation);
+            child.updateRotation(Math.abs(this.currentRotation));
         });
         let indexOffset = 360 / this.spokeList.length;
         this.spokeList.forEach((spoke, index) => {
@@ -46,29 +48,32 @@ class Cog {
         this.cogY = y;
         this.cogR = radius;
         if (parentId !== undefined) {
-            let parentCog = cogMap.get(parentId);
+            let parentCog = cogMap.get(this.parentId);
+            console.log(parentCog);
             // simple math: rotation speed = parent cogs / child cogs
             this.parentRotationRatio = parentCog.spokeList.length / this.spokeList.length;
             // connected cogs rotate in reverse directions
-            this.parentRotationRatio *= -1 * Math.sign(parentCog.parentRotationRatio);            
+            console.log('child:', this.parentRotationRatio, 'parent:', parentCog.parentRotationRatio);
+            this.parentRotationRatio *= -Math.sign(parentCog.parentRotationRatio);     
+            console.log('child:', this.parentRotationRatio, 'parent:', parentCog.parentRotationRatio);
         }
     }
 }
 
 let getNearestCog = (x, y) => {
     let nearestDist = Number.MAX_VALUE;
-    let nearestId = 0;
+    let nearestId = -1;
     cogMap.forEach((cog, cogId) => {
         let checkedDist = cog.getDistance(x, y, 0);
         if (checkedDist < nearestDist) {
-            nearestDist = nearestDist;
+            nearestDist = checkedDist;
             nearestId = cogId;
         }
     });
     return {cogDistance: nearestDist, cogId: nearestId};
 }
 
-let addCog = (x, y) => {
+let addCog = (x, y, isVirtual) => {
     let cogId = cogMap.size;
     // hardcoded variables for root element
     let parentId = undefined;
@@ -84,13 +89,16 @@ let addCog = (x, y) => {
         let halfCircumference = Math.PI * radius;
         nSpokes = halfCircumference / 30; // circumference / spoke_width / 2
     }
-    
+
+    console.log(`New cog: radius: ${radius}, n of spokes: ${nSpokes}, parent id: ${parentId}`)
+
     let newDomCog = document.createElement('div');
     newDomCog.classList.add('cog');
     newDomCog.style.width = `${radius * 2}px`;
     newDomCog.style.top = `${y}px`;
     newDomCog.style.left = `${x}px`;
     let spokeList = new Array();
+
     for(let i = 0; i < nSpokes; i++) {
         let degRot = i * 360 / nSpokes;
         let newSpoke = document.createElement('div');
@@ -99,25 +107,31 @@ let addCog = (x, y) => {
         newSpoke.classList.add('spoke');
         spokeList.push(newDomCog.appendChild(newSpoke));
     }
+
     let cogDomRef = cogField.appendChild(newDomCog);
 
     let newCog = new Cog(
-        window.screen.width / 2 - 87, 
-        window.screen.height / 2 - 87, 
-        50, 
+        x, 
+        y, 
+        radius, 
         cogId,
         parentId,
         cogDomRef,
         spokeList);
 
-    cogMap.set(cogId, newCog);
-    if (parentId) {
-        cogMap.get(parentId).childrenList.push(newCog);
+    if (!isVirtual) {
+        cogMap.set(cogId, newCog);
+
+        if (parentId != undefined) {
+            cogMap.get(parentId).childrenList.push(newCog);
+        }
     }
 }
 
 addCog(window.screen.width / 2, window.screen.height / 2);
-addCog(window.screen.width / 2-200, window.screen.height / 2-100);
+addCog(window.screen.width / 2 - 200, window.screen.height / 2 + 10);
+addCog(window.screen.width / 2 - 300, window.screen.height / 2 - 300);
+
 
 // while JS is single-thread, i believe multithreading will be simulated when using setInterval, thus these mutex locks are neccesary.
 let placementReady = true; // ensures only one placement loop instance is run at a time, as placement loop may be resource intensive
@@ -144,3 +158,7 @@ setInterval(() => {
     // clockHandlerSecond.style.rotate = `${secondDeg*6}deg`;
     oldTime = currentTime;
 }, frameLength);
+
+document.getElementById('create-cog-button').addEventListener('onClick', () => {
+    placementMode = true;
+});
