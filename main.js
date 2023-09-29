@@ -25,17 +25,21 @@ class Cog {
     cogX = 0; 
     cogY = 0;
     cogR = 1;
+    fix_perimeterLength = 0;
+    fix_rotationOffset = 0;
+    fix_parentAzimuth = 0;
+    fix_spokeLambda = 0;
     getDistance(tX, tY, tR) {
         return Math.hypot(tX - this.cogX, tY - this.cogY) - tR - this.cogR; // simple pythagorean minus both radii
     }
     updateRotation(parentRotation) {
-        this.currentRotation = parentRotation * this.parentRotationRatio;
+        this.currentRotation = parentRotation * this.parentRotationRatio + this.fix_rotationOffset;
         this.childrenList.forEach((child) => {
             child.updateRotation(Math.abs(this.currentRotation));
         });
         let indexOffset = 360 / this.spokeList.length;
         this.spokeList.forEach((spoke, index) => {
-            let spokeRotation = this.currentRotation + index * indexOffset;
+            let spokeRotation = this.currentRotation + index * indexOffset ;
             spoke.style.rotate = `${spokeRotation}deg`;
         });
     }
@@ -73,6 +77,27 @@ let getNearestCog = (x, y) => {
     return {cogDistance: nearestDist, cogId: nearestId};
 }
 
+let fixAlignmentIssue = (cog) => {
+    let parentCog = cogMap.get(cog.parentId);
+    if (parentCog == undefined)
+        return;
+    // this got revealed to me in my dream
+    // rotate 180 to align our top spoke to parent's top spoke, they are perfectly aligned (figure out to make this work for multiple linked cogs)
+    // rotate by 1/2 labda of our cog (we treat our cog as a square wave of spokes)
+    // rotate by +azimuth of the parent cog, to adjust the angular difference between the perfectly aligned top and our current position
+    let fix_spokeLambda = cog.fix_perimeterLength / cog.spokeList.length;
+    vec_x = parentCog.cogX - cog.cogX;
+    vec_y = parentCog.cogY - cog.cogY;
+    let fix_parentAzimuth = Math.atan2(vec_x, vec_y);
+
+    // the rotation adjustment has to be as small as possible to avoid some startup bugs
+    // first we snap to nearest cog, then adjust by half spoke lambda
+    // the offset of spoke from the touch point is azimuth mod lambda, we get that for both the parent and the child 
+    // we get these offsets of both the parent and the child, then fix the child by it's offset + the offset of the parent
+    // then offset by 1/2 lambda
+    
+}
+
 let addCog = (x, y, isVirtual) => {
     let cogId = cogMap.size;
     // hardcoded variables for root element
@@ -80,13 +105,14 @@ let addCog = (x, y, isVirtual) => {
     // add cog is a direct interaction function, all we get is where user clicked, and so we compute the size of our desired cog and n of cogs it requires
     let radius = 50; // distance_to_parent - parent_radius - (spoke_height * 2)
     let nSpokes = 6; // radius / spoke_width / 2
-
+    let circumference = -1;
     if (cogMap.size != 0) {
         // find nearest parent and connect to it.   
         let nearestCog = getNearestCog(x, y);
         parentId = nearestCog.cogId;
-        radius = nearestCog.cogDistance - 30; // distance_to_parent - parent_radius - (spoke_height * 2)
+        radius = nearestCog.cogDistance - 25; // distance_to_parent - parent_radius - (spoke_height * 2)
         let halfCircumference = Math.PI * radius;
+        circumference = halfCircumference * 2;
         nSpokes = halfCircumference / 30; // circumference / spoke_width / 2
     }
 
@@ -118,6 +144,9 @@ let addCog = (x, y, isVirtual) => {
         parentId,
         cogDomRef,
         spokeList);
+
+    newCog.fix_perimeterLength = circumference;
+    fixAlignmentIssue(newCog);
 
     if (!isVirtual) {
         cogMap.set(cogId, newCog);
