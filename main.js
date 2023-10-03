@@ -25,10 +25,7 @@ class Cog {
     cogX = 0; 
     cogY = 0;
     cogR = 1;
-    fix_perimeterLength = 0;
     fix_rotationOffset = 0;
-    fix_parentAzimuth = 0;
-    fix_spokeLambda = 0;
     getDistance(tX, tY, tR) {
         return Math.hypot(tX - this.cogX, tY - this.cogY) - tR - this.cogR; // simple pythagorean minus both radii
     }
@@ -53,13 +50,13 @@ class Cog {
         this.cogR = radius;
         if (parentId !== undefined) {
             let parentCog = cogMap.get(this.parentId);
-            console.log(parentCog);
+            //console.log(parentCog);
             // simple math: rotation speed = parent cogs / child cogs
             this.parentRotationRatio = parentCog.spokeList.length / this.spokeList.length;
             // connected cogs rotate in reverse directions
-            console.log('child:', this.parentRotationRatio, 'parent:', parentCog.parentRotationRatio);
+            //console.log('child:', this.parentRotationRatio, 'parent:', parentCog.parentRotationRatio);
             this.parentRotationRatio *= -Math.sign(parentCog.parentRotationRatio);     
-            console.log('child:', this.parentRotationRatio, 'parent:', parentCog.parentRotationRatio);
+            //console.log('child:', this.parentRotationRatio, 'parent:', parentCog.parentRotationRatio);
         }
     }
 }
@@ -77,7 +74,7 @@ let getNearestCog = (x, y) => {
     return {cogDistance: nearestDist, cogId: nearestId};
 }
 
-let fixAlignmentIssue = (cog) => {
+let fixAlignmentIssue = (cog, perimeterLength) => {
     let parentCog = cogMap.get(cog.parentId);
     if (parentCog == undefined)
         return;
@@ -85,17 +82,21 @@ let fixAlignmentIssue = (cog) => {
     // rotate 180 to align our top spoke to parent's top spoke, they are perfectly aligned (figure out to make this work for multiple linked cogs)
     // rotate by 1/2 labda of our cog (we treat our cog as a square wave of spokes)
     // rotate by +azimuth of the parent cog, to adjust the angular difference between the perfectly aligned top and our current position
-    let fix_spokeLambda = cog.fix_perimeterLength / cog.spokeList.length;
+    let halfSpokeLambda = perimeterLength / cog.spokeList.length / 2;
     vec_x = parentCog.cogX - cog.cogX;
     vec_y = parentCog.cogY - cog.cogY;
-    let fix_parentAzimuth = Math.atan2(vec_x, vec_y);
+    let parentAzimuth = Math.atan2(vec_x, vec_y) * 180 / Math.PI; // almost identical for both cogs as both cog centers and the touchpoint stand on a single straight line 
 
     // the rotation adjustment has to be as small as possible to avoid some startup bugs
     // first we snap to nearest cog, then adjust by half spoke lambda
     // the offset of spoke from the touch point is azimuth mod lambda, we get that for both the parent and the child 
     // we get these offsets of both the parent and the child, then fix the child by it's offset + the offset of the parent
-    // then offset by 1/2 lambda
-    
+    // final offset: 1/2 lambda + own azimuth correction + parent azimuth correction * parent's ratio
+    let childInterOffset = parentAzimuth % cog.spokeList.length; // current position of parent compared to child's nearest spoke
+    let parentInterOffset = (parentAzimuth + 180) % parentCog.spokeList.length; // we correct by parent as well so that if parent is already aligned to other cog, we fix by that as well
+    console.log('offset values', childInterOffset, parentInterOffset);
+
+    cog.fix_rotationOffset = childInterOffset - parentInterOffset + halfSpokeLambda;
 }
 
 let addCog = (x, y, isVirtual) => {
@@ -116,7 +117,7 @@ let addCog = (x, y, isVirtual) => {
         nSpokes = halfCircumference / 30; // circumference / spoke_width / 2
     }
 
-    console.log(`New cog: radius: ${radius}, n of spokes: ${nSpokes}, parent id: ${parentId}`)
+    console.log(`New cog: x: ${x}, y: ${y}, radius: ${radius}, n of spokes: ${nSpokes}, parent id: ${parentId}`)
 
     let newDomCog = document.createElement('div');
     newDomCog.classList.add('cog');
@@ -145,8 +146,7 @@ let addCog = (x, y, isVirtual) => {
         cogDomRef,
         spokeList);
 
-    newCog.fix_perimeterLength = circumference;
-    fixAlignmentIssue(newCog);
+    fixAlignmentIssue(newCog, circumference);
 
     if (!isVirtual) {
         cogMap.set(cogId, newCog);
@@ -166,6 +166,8 @@ addCog(window.screen.width / 2 - 300, window.screen.height / 2 - 300);
 let placementReady = true; // ensures only one placement loop instance is run at a time, as placement loop may be resource intensive
 let rotationReady = true; // similar to placementReady, rotation updating may take even longer.
 let virtualCog = undefined; // cog's green hologram rendered when placementMode is active, it follows the cursor but follows all other cog laws.
+
+//cogMap.get(0).updateRotation(currentRootRotation); // TEMPORARY
 setInterval(() => {
     let currentTime = new Date();
     deltaT = (currentTime - oldTime) / frameLength;
@@ -188,6 +190,16 @@ setInterval(() => {
     oldTime = currentTime;
 }, frameLength);
 
-document.getElementById('create-cog-button').addEventListener('onClick', () => {
-    placementMode = true;
-});
+document.getElementById('create-cog-button').onmouseup = () => {
+    setTimeout(() => {
+        placementMode = true;
+    }, 500);
+};
+
+document.onclick = (event) => {
+    if (placementMode) {
+        console.log('new cog placed by user at:', event.clientX, event.clientY);
+        addCog(event.clientX, event.clientY);
+        placementMode = false;
+    }
+}
